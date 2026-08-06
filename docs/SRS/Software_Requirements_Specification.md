@@ -45,3 +45,20 @@ Although these platforms are powerful, users often need to switch between multip
 Existing cybersecurity AI solutions are often specialized for enterprise environments or limited to a single function such as secure coding, threat intelligence, or malware analysis. There is a lack of an integrated platform that combines learning, analysis, secure coding assistance, incident response support, and cybersecurity knowledge through collaborative AI agents.
 
 CyberSphere AI addresses this research gap by providing a unified AI-powered cybersecurity workspace where specialized AI agents collaborate automatically to assist users, eliminating the need to manually switch between multiple tools.
+
+---
+
+# 4. Project Objectives
+
+The primary objective of CyberSphere AI is to develop an intelligent AI-powered cybersecurity workspace that simplifies cybersecurity workflows through collaborative specialized AI agents.
+
+The specific objectives of the project are:
+
+- To provide a centralized platform for cybersecurity learning and security analysis.
+- To automate the selection of specialized AI agents based on the user's request.
+- To assist developers in identifying and fixing security vulnerabilities in source code.
+- To analyze cybersecurity artifacts such as logs, IP addresses, URLs, and security reports.
+- To generate professional incident response reports automatically.
+- To improve cybersecurity education through interactive explanations and guided learning.
+- To reduce the dependency on multiple disconnected cybersecurity tools by integrating them into one intelligent platform.
+- To build a scalable architecture that supports future AI agents and cybersecurity modules.
