@@ -11,7 +11,9 @@ export default function Login() {
         <input type="email" placeholder="Email" />
         <input type="password" placeholder="Password" />
 
+        <Link to="/dashboard">
         <button>Login</button>
+        </Link>
 
         <p>
           Don't have an account? <Link to="/">Back to Home</Link>
