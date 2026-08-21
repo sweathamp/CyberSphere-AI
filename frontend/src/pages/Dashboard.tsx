@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 export default function Dashboard() {
   return (
     <div className="dashboard">
-      {/* Sidebar */}
       <aside className="sidebar">
         <h2>CyberSphere</h2>
 
@@ -21,13 +20,11 @@ export default function Dashboard() {
         </Link>
       </aside>
 
-      {/* Main Content */}
       <main className="dashboard-content">
         <h1>Good Morning 👋</h1>
 
         <p>Welcome to your AI Cybersecurity Workspace.</p>
 
-        {/* Chat Shortcut */}
         <div className="chat-box">
           <input placeholder="Ask CyberSphere anything..." />
 
@@ -36,7 +33,6 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* Quick Actions */}
         <section className="quick-actions">
           <div className="action-card">
             <h3>Threat Intelligence</h3>
@@ -59,7 +55,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Recent Activity */}
         <section className="recent">
           <h2>Recent Activity</h2>
 
