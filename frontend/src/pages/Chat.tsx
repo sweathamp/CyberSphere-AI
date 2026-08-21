@@ -1,34 +1,85 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 
-const agents = [
-  "Orchestrator",
-  "SOC Agent",
-  "Threat Intelligence",
-  "MITRE Mapping",
-];
+type Message = {
+  sender: "user" | "bot";
+  text: string;
+};
+
+type AgentStatus = "waiting" | "running" | "completed";
+
+type Agent = {
+  name: string;
+  status: AgentStatus;
+};
 
 export default function Chat() {
-  const [message, setMessage] = useState("");
-  const [activeStep, setActiveStep] = useState(0);
+  const [input, setInput] = useState("");
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveStep((prev) => {
-        if (prev >= agents.length) {
-          clearInterval(interval);
-          return prev;
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      sender: "bot",
+      text: "👋 Welcome to CyberSphere. Ask me anything about cybersecurity.",
+    },
+  ]);
+
+  const [agents, setAgents] = useState<Agent[]>([
+    { name: "Orchestrator", status: "waiting" },
+    { name: "SOC Agent", status: "waiting" },
+  ]);
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = input;
+
+    setMessages((prev) => [
+      ...prev,
+      { sender: "user", text: userMessage },
+    ]);
+
+    setInput("");
+
+    setAgents([
+      { name: "Orchestrator", status: "running" },
+      { name: "SOC Agent", status: "waiting" },
+    ]);
+
+    try {
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/chat",
+        {
+          message: userMessage,
         }
-        return prev + 1;
-      });
-    }, 1000);
+      );
 
-    return () => clearInterval(interval);
-  }, []);
+      setAgents([
+        { name: "Orchestrator", status: "completed" },
+        { name: "SOC Agent", status: "completed" },
+      ]);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "bot",
+          text: response.data.reply,
+        },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "bot",
+          text: "❌ Backend connection failed.",
+        },
+      ]);
+    }
+  };
 
   return (
     <div className="chat-page">
-      {/* Left Sidebar */}
+      {/* Sidebar */}
       <aside className="chat-sidebar">
         <h2>CyberSphere</h2>
 
@@ -48,28 +99,35 @@ export default function Chat() {
       {/* Chat Area */}
       <main className="chat-main">
         <div className="messages">
-          <div className="bot-msg">
-            👋 Welcome to CyberSphere. Ask me anything about cybersecurity.
-          </div>
-
-          <div className="user-msg">
-            Analyze this SSH log.
-          </div>
-
-          <div className="bot-msg">
-            I detected multiple failed SSH login attempts. Agent collaboration is
-            currently running.
-          </div>
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={
+                msg.sender === "user"
+                  ? "user-msg"
+                  : "bot-msg"
+              }
+            >
+              {msg.text}
+            </div>
+          ))}
         </div>
 
         <div className="chat-input">
           <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="Ask CyberSphere anything..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                sendMessage();
+              }
+            }}
           />
 
-          <button>Send</button>
+          <button onClick={sendMessage}>
+            Send
+          </button>
         </div>
       </main>
 
@@ -77,23 +135,19 @@ export default function Chat() {
       <aside className="agent-panel">
         <h3>Agent Activity</h3>
 
-        {agents.map((agent, index) => {
-          let className = "waiting";
-
-          if (index < activeStep) className = "done";
-          else if (index === activeStep) className = "active";
-
-          return (
-            <div key={agent} className={`agent-card ${className}`}>
-              {index < activeStep
-                ? "✓ "
-                : index === activeStep
-                ? "● "
-                : "○ "}
-              {agent}
-            </div>
-          );
-        })}
+        {agents.map((agent) => (
+          <div
+            key={agent.name}
+            className={`agent-card ${agent.status}`}
+          >
+            {agent.status === "completed"
+              ? "✓"
+              : agent.status === "running"
+              ? "●"
+              : "○"}{" "}
+            {agent.name}
+          </div>
+        ))}
       </aside>
     </div>
   );
