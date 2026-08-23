@@ -4,6 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes.health import router as health_router
 from app.routes.chat import router as chat_router
 
+from app.database.connection import engine
+from app.database.models import Base
+
+# Create tables automatically
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="CyberSphere API",
     version="1.0.0"

@@ -1,7 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import Orchestrator
+from app.database.connection import get_db
+from app.database.models import Conversation
 
 router = APIRouter(prefix="/api")
 
@@ -14,8 +17,18 @@ orchestrator = Orchestrator()
 
 
 @router.post("/chat")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, db: Session = Depends(get_db)):
 
     result = orchestrator.analyze(request.message)
+
+    conversation = Conversation(
+        user_message=request.message,
+        bot_reply=result["reply"],
+        agent_used=result["agent"]
+    )
+
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
 
     return result
