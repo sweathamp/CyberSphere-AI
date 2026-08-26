@@ -1,8 +1,37 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import axios from "axios";
+import "../styles/dashboard.css";
+
+type Activity = {
+  id: number;
+  message: string;
+  agent: string;
+  time: string;
+};
 
 export default function Dashboard() {
+  const [activities, setActivities] = useState<Activity[]>([]);
+
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        const response = await axios.get(
+          "http://127.0.0.1:8000/api/conversations"
+        );
+
+        setActivities(response.data);
+      } catch (error) {
+        console.error("Failed to load activities");
+      }
+    };
+
+    fetchActivities();
+  }, []);
+
   return (
     <div className="dashboard">
+      {/* Sidebar */}
       <aside className="sidebar">
         <h2>CyberSphere</h2>
 
@@ -20,6 +49,7 @@ export default function Dashboard() {
         </Link>
       </aside>
 
+      {/* Main Content */}
       <main className="dashboard-content">
         <h1>Good Morning 👋</h1>
 
@@ -55,23 +85,30 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* Live Recent Activity */}
         <section className="recent">
           <h2>Recent Activity</h2>
 
-          <div className="recent-card">
-            <strong>SSH Log Analysis</strong>
-            <p>High Risk • Brute Force detected</p>
-          </div>
+          {activities.length === 0 ? (
+            <div className="recent-card">
+              No recent activity yet.
+            </div>
+          ) : (
+            activities.map((activity) => (
+              <div
+                key={activity.id}
+                className="recent-card"
+              >
+                <strong>{activity.message}</strong>
 
-          <div className="recent-card">
-            <strong>Node.js Code Review</strong>
-            <p>Medium Risk • Authentication improvements suggested</p>
-          </div>
+                <p>{activity.agent}</p>
 
-          <div className="recent-card">
-            <strong>SQL Injection Learning</strong>
-            <p>Completed interactive lesson</p>
-          </div>
+                <small>
+                  {new Date(activity.time).toLocaleString()}
+                </small>
+              </div>
+            ))
+          )}
         </section>
       </main>
     </div>
