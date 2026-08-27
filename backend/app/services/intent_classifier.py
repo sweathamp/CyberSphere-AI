@@ -85,15 +85,39 @@ USER REQUEST:
 {message}
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt
-    )
+    # --------------------------------
+    # Gemini AI Classification
+    # --------------------------------
 
-    intent = response.text.strip().lower()
+    try:
 
-    # Safety check: only accept known labels
-    if intent not in VALID_INTENTS:
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt
+        )
+
+        # --------------------------------
+        # Validate AI response
+        # --------------------------------
+
+        if not response.text:
+            return "unknown"
+
+        intent = response.text.strip().lower()
+
+        if intent not in VALID_INTENTS:
+            return "unknown"
+
+        return intent
+
+    # --------------------------------
+    # AI Failure Handling
+    # --------------------------------
+
+    except Exception as error:
+
+        print(
+            f"[Intent Classifier] Gemini classification failed: {error}"
+        )
+
         return "unknown"
-
-    return intent

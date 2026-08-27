@@ -29,6 +29,22 @@ class AgentRouter:
         ]
 
         if any(keyword in text for keyword in network_keywords):
+             return "network_scan"
+
+        # Generic scan intent
+        # Handles inputs such as:
+        # "scan xyz"
+        # "scan this host"
+        # "please scan abc"
+        if text.startswith("scan ") and not any(
+            word in text
+            for word in [
+                "code",
+                "url",
+                "website"
+            ]
+        ):
+
             return "network_scan"
 
         # =================================

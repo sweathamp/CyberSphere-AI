@@ -194,3 +194,115 @@ Give practical defensive recommendations such as:
     )
 
     return response.text
+
+def analyze_url_findings(
+    url: str,
+    url_data: dict
+) -> str:
+
+    prompt = f"""
+You are CyberSphere's AI URL Security Analyst.
+
+Analyze the REAL HTTP/HTTPS metadata collected for the
+provided URL.
+
+URL:
+{url}
+
+URL ANALYSIS DATA:
+{url_data}
+
+STRICT RULES:
+
+1. Use ONLY the supplied URL analysis evidence.
+2. Never invent malware, phishing history, reputation,
+   vulnerabilities, CVEs, attacks, or threat intelligence.
+3. An HTTP status code alone does NOT prove that a URL
+   is safe or malicious.
+4. The presence or absence of a security header alone
+   does NOT prove that a website is vulnerable.
+5. If a security header is missing, describe it as an
+   observation that may warrant review, not as a confirmed
+   vulnerability.
+6. If redirects are observed, describe the redirect behavior
+   without assuming malicious intent.
+7. Clearly distinguish OBSERVED FACTS from SECURITY INTERPRETATION.
+8. If the evidence is insufficient, explicitly say:
+   "Insufficient evidence to determine this."
+9. Do not claim that the domain or website is malicious
+   unless direct evidence is provided.
+10. Do not claim that HTTPS guarantees complete security.
+11. Keep recommendations practical and defensive.
+12. This is an authorized security assessment.
+
+Produce exactly these sections:
+
+1. Risk Assessment
+
+Give:
+- Risk Level: Low / Medium / High / Inconclusive
+- Short rationale
+
+The risk level must be based ONLY on the supplied evidence.
+
+
+2. Observed URL Findings
+
+Include:
+- Original URL
+- Final URL
+- Domain
+- HTTP status code
+- Protocol
+- Redirect count
+- Content type
+- Server
+- Security headers
+
+
+3. Security Interpretation
+
+Explain the security significance of the observed
+HTTP/HTTPS behavior and security headers.
+
+Clearly distinguish:
+- Fact
+- Interpretation
+
+Do not overstate conclusions.
+
+
+4. Data Limitations
+
+Explain what cannot be determined from this dataset.
+
+Mention limitations such as:
+- Domain/IP reputation
+- Malware intelligence
+- Website content analysis
+- Web application vulnerabilities
+- Authentication behavior
+- Backend infrastructure
+- Full SSL/TLS configuration
+- Network traffic
+
+
+5. Recommended Next Steps
+
+Give practical defensive recommendations based ONLY
+on the supplied evidence.
+
+Examples:
+- Review missing security headers.
+- Verify HTTPS configuration.
+- Investigate unexpected redirects.
+- Perform authorized web application testing when appropriate.
+- Check domain/IP reputation using trusted intelligence sources.
+"""
+
+    response = client.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt
+    )
+
+    return response.text

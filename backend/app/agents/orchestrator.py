@@ -4,9 +4,12 @@ from app.agents.agent_router import AgentRouter
 from app.tools.whois_runner import run_whois
 from app.tools.dns_runner import run_dns
 from app.tools.nmap_runner import run_nmap
+from app.tools.url_runner import run_url_check
+from app.services.target_resolver import resolve_target
 from app.services.ai_analyzer import (
     analyze_security_findings,
-    analyze_network_findings
+    analyze_network_findings,
+    analyze_url_findings
 )
 
 
@@ -20,15 +23,60 @@ class Orchestrator:
         task = router.classify(message)
 
         # --------------------------------
+        # Unknown Intent Handling
+        # --------------------------------
+
+        if task == "unknown":
+
+            return {
+                "reply": (
+                    "I couldn't confidently determine the security task "
+                    "from your request.\n\n"
+                    "Please specify what you would like CyberSphere to do, "
+                    "for example:\n"
+                    "• Network scan\n"
+                    "• Threat intelligence\n"
+                    "• SSH log analysis\n"
+                    "• Code security review\n"
+                    "• URL analysis\n"
+                    "• Cybersecurity explanation"
+                ),
+                "agent": "Orchestrator",
+                "status": {
+                    "orchestrator": "completed",
+                    "soc": "waiting",
+                    "threat": "waiting",
+                    "mitre": "waiting"
+                }
+            }
+
+        # --------------------------------
         # Network / Nmap Analysis
         # --------------------------------
 
         if task == "network_scan":
 
-            target = "127.0.0.1"
+            target_result = resolve_target(message)
+
+            if not target_result["success"]:
+
+                return {
+                    "reply": (
+                        "🛰️ Network Scan\n\n"
+                        f"{target_result['error']}"
+                    ),
+                    "agent": "Network Analysis Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "waiting",
+                        "threat": "waiting",
+                        "mitre": "waiting"
+                    }
+                }
+
+            target = target_result["target"]
 
             nmap_result = run_nmap(target)
-
             if not nmap_result["success"]:
 
                 return {
@@ -198,16 +246,88 @@ class Orchestrator:
 
         elif task == "url":
 
+            # Extract URL from user message
+            url_match = re.search(
+                r"https?://[^\s]+|"
+                r"\b(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:/[^\s]*)?\b",
+                message
+            )
+
+            if not url_match:
+
+                return {
+                    "reply": (
+                        "🔗 URL Analysis\n\n"
+                        "Please provide a valid URL for analysis.\n\n"
+                        "Example:\n"
+                        "https://example.com"
+                    ),
+                    "agent": "URL Analysis Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "waiting",
+                        "threat": "waiting",
+                        "mitre": "waiting"
+                    }
+                }
+
+            url = url_match.group(0)
+
+            # --------------------------------
+            # REAL URL ANALYSIS
+            # --------------------------------
+
+            url_result = run_url_check(url)
+
+            if not url_result["success"]:
+
+                return {
+                    "reply": (
+                        f"🔗 URL Analysis\n\n"
+                        f"URL: {url}\n\n"
+                        f"❌ URL analysis could not be completed.\n\n"
+                        f"Error: {url_result['error']}"
+                    ),
+                    "agent": "URL Analysis Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "waiting",
+                        "threat": "completed",
+                        "mitre": "waiting"
+                    }
+                }
+
+            # --------------------------------
+            # AI URL SECURITY ANALYSIS
+            # --------------------------------
+
+            ai_analysis = analyze_url_findings(
+                url,
+                url_result
+            )
+
+            # --------------------------------
+            # FINAL URL SECURITY REPORT
+            # --------------------------------
+
+            reply = (
+                f"🔗 URL Security Report\n\n"
+                f"URL: {url}\n\n"
+
+                f"🌐 URL ANALYSIS DATA\n"
+                f"{url_result}\n\n"
+
+                f"🧠 AI SECURITY ASSESSMENT\n"
+                f"{ai_analysis}"
+            )
+
             return {
-                "reply": (
-                    "URL analysis is currently being prepared. "
-                    "Threat Intelligence tooling will be used for this analysis."
-                ),
+                "reply": reply,
                 "agent": "URL Analysis Agent",
                 "status": {
                     "orchestrator": "completed",
                     "soc": "waiting",
-                    "threat": "waiting",
+                    "threat": "completed",
                     "mitre": "waiting"
                 }
             }
