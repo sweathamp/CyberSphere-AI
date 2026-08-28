@@ -1,16 +1,24 @@
 import re
 
 from app.agents.agent_router import AgentRouter
+
 from app.tools.whois_runner import run_whois
 from app.tools.dns_runner import run_dns
 from app.tools.nmap_runner import run_nmap
 from app.tools.url_runner import run_url_check
+from app.tools.ssh_log_runner import analyze_ssh_log
+from app.services.learning_agent import answer_cybersecurity_question
+
 from app.services.target_resolver import resolve_target
+
 from app.services.ai_analyzer import (
     analyze_security_findings,
     analyze_network_findings,
-    analyze_url_findings
+    analyze_url_findings,
+    analyze_ssh_findings,
 )
+
+from app.services.code_analyzer import analyze_code_security
 
 
 router = AgentRouter()
@@ -18,7 +26,12 @@ router = AgentRouter()
 
 class Orchestrator:
 
-    def analyze(self, message: str):
+    def analyze(
+        self,
+        message: str,
+        log_data: str | None = None,
+        code_data: str | None = None
+    ):
 
         task = router.classify(message)
 
@@ -77,6 +90,7 @@ class Orchestrator:
             target = target_result["target"]
 
             nmap_result = run_nmap(target)
+
             if not nmap_result["success"]:
 
                 return {
@@ -101,10 +115,8 @@ class Orchestrator:
             reply = (
                 f"🛰️ Network Security Report\n\n"
                 f"Target: {target}\n\n"
-
                 f"🔎 NMAP FINDINGS\n"
                 f"{nmap_result['ports']}\n\n"
-
                 f"🧠 AI SECURITY ASSESSMENT\n"
                 f"{ai_analysis}"
             )
@@ -126,17 +138,80 @@ class Orchestrator:
 
         if task == "ssh_log":
 
+            # --------------------------------
+            # Validate SSH Log Input
+            # --------------------------------
+
+            if not log_data or not log_data.strip():
+
+                return {
+                    "reply": (
+                        "🛡️ SSH / SOC Analysis\n\n"
+                        "Please provide the SSH log data you want "
+                        "CyberSphere to analyze.\n\n"
+                        "Example:\n"
+                        "Failed password for root from 192.168.1.50"
+                    ),
+                    "agent": "SOC Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "waiting",
+                        "threat": "waiting",
+                        "mitre": "waiting"
+                    }
+                }
+
+            # --------------------------------
+            # REAL SSH LOG ANALYSIS
+            # --------------------------------
+
+            ssh_result = analyze_ssh_log(log_data)
+
+            if not ssh_result["success"]:
+
+                return {
+                    "reply": (
+                        "🛡️ SSH / SOC Analysis\n\n"
+                        "SSH log analysis could not be completed.\n\n"
+                        f"Error: {ssh_result['error']}"
+                    ),
+                    "agent": "SOC Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "failed",
+                        "threat": "waiting",
+                        "mitre": "waiting"
+                    }
+                }
+
+            # --------------------------------
+            # AI SOC SECURITY ANALYSIS
+            # --------------------------------
+
+            ai_analysis = analyze_ssh_findings(
+                ssh_result
+            )
+
+            # --------------------------------
+            # FINAL SOC REPORT
+            # --------------------------------
+
+            reply = (
+                f"🛡️ SOC Security Report\n\n"
+                f"🔐 SSH LOG FINDINGS\n"
+                f"{ssh_result}\n\n"
+                f"🧠 AI SOC ASSESSMENT\n"
+                f"{ai_analysis}"
+            )
+
             return {
-                "reply": (
-                    "I detected multiple failed SSH login attempts. "
-                    "SOC analysis has identified suspicious authentication activity."
-                ),
+                "reply": reply,
                 "agent": "SOC Agent",
                 "status": {
                     "orchestrator": "completed",
                     "soc": "completed",
                     "threat": "waiting",
-                    "mitre": "waiting"
+                    "mitre": "completed"
                 }
             }
 
@@ -146,17 +221,106 @@ class Orchestrator:
 
         elif task == "code":
 
+            # --------------------------------
+            # Validate Code Input
+            # --------------------------------
+
+            if not code_data or not code_data.strip():
+
+                return {
+                    "reply": (
+                        "💻 Code Security Review\n\n"
+                        "Please provide the source code you want "
+                        "CyberSphere to analyze.\n\n"
+                        "Example:\n"
+                        "SELECT * FROM users WHERE username = '"
+                        "+ username"
+                    ),
+                    "agent": "Code Review Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "waiting",
+                        "threat": "waiting",
+                        "mitre": "waiting"
+                    }
+                }
+
+            # --------------------------------
+            # Detect Programming Language
+            # --------------------------------
+
+            language = "Unknown"
+
+            message_lower = message.lower()
+
+            if "python" in message_lower:
+                language = "Python"
+
+            elif "java" in message_lower:
+                language = "Java"
+
+            elif "javascript" in message_lower or "js" in message_lower:
+                language = "JavaScript"
+
+            elif "typescript" in message_lower or "ts" in message_lower:
+                language = "TypeScript"
+
+            elif "c++" in message_lower:
+                language = "C++"
+
+            elif "c#" in message_lower:
+                language = "C#"
+
+            elif "php" in message_lower:
+                language = "PHP"
+
+            # --------------------------------
+            # REAL CODE SECURITY ANALYSIS
+            # --------------------------------
+
+            try:
+
+                ai_analysis = analyze_code_security(
+                    code_data,
+                    language
+                )
+
+            except Exception as e:
+
+                return {
+                    "reply": (
+                        "💻 Code Security Review\n\n"
+                        "Code analysis could not be completed.\n\n"
+                        f"Error: {str(e)}"
+                    ),
+                    "agent": "Code Review Agent",
+                    "status": {
+                        "orchestrator": "completed",
+                        "soc": "waiting",
+                        "threat": "waiting",
+                        "mitre": "waiting"
+                    }
+                }
+
+            # --------------------------------
+            # FINAL CODE SECURITY REPORT
+            # --------------------------------
+
+            reply = (
+                f"💻 Code Security Report\n\n"
+                f"Language: {language}\n\n"
+                f"🧠 AI SECURITY ASSESSMENT\n"
+                f"{ai_analysis}"
+            )
+
             return {
-                "reply": (
-                    "I'll review the provided code for common "
-                    "security vulnerabilities."
-                ),
+                "reply": reply,
                 "agent": "Code Review Agent",
                 "status": {
                     "orchestrator": "completed",
                     "soc": "waiting",
                     "threat": "waiting",
-                    "mitre": "waiting"
+                    "mitre": "completed"
                 }
             }
 
@@ -218,13 +382,10 @@ class Orchestrator:
             reply = (
                 f"🔍 Threat Intelligence Report\n\n"
                 f"Domain: {domain}\n\n"
-
                 f"📋 WHOIS DATA\n"
                 f"{whois_result}\n\n"
-
                 f"🌐 DNS DATA\n"
                 f"{dns_result}\n\n"
-
                 f"🧠 AI SECURITY ASSESSMENT\n"
                 f"{ai_analysis}"
             )
@@ -247,6 +408,7 @@ class Orchestrator:
         elif task == "url":
 
             # Extract URL from user message
+
             url_match = re.search(
                 r"https?://[^\s]+|"
                 r"\b(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:/[^\s]*)?\b",
@@ -313,10 +475,8 @@ class Orchestrator:
             reply = (
                 f"🔗 URL Security Report\n\n"
                 f"URL: {url}\n\n"
-
                 f"🌐 URL ANALYSIS DATA\n"
                 f"{url_result}\n\n"
-
                 f"🧠 AI SECURITY ASSESSMENT\n"
                 f"{ai_analysis}"
             )
@@ -336,15 +496,17 @@ class Orchestrator:
         # Learning Agent
         # --------------------------------
 
-        return {
-            "reply": (
-                "Here's a cybersecurity learning explanation for your query."
-            ),
-            "agent": "Learning Agent",
-            "status": {
-                "orchestrator": "completed",
-                "soc": "waiting",
-                "threat": "waiting",
-                "mitre": "waiting"
+        if task == "learning":
+
+            learning_response = answer_cybersecurity_question(message)
+
+            return {
+                "reply": learning_response,
+                "agent": "Learning Agent",
+                "status": {
+                    "orchestrator": "completed",
+                    "soc": "waiting",
+                    "threat": "waiting",
+                    "mitre": "waiting"
+                }
             }
-        }

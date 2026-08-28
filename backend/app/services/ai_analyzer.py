@@ -306,3 +306,115 @@ Examples:
     )
 
     return response.text
+
+def analyze_ssh_findings(
+    ssh_data: dict
+) -> str:
+
+    prompt = f"""
+You are CyberSphere's AI SOC Security Analyst.
+
+Analyze the REAL SSH authentication evidence provided below.
+
+SSH LOG ANALYSIS DATA:
+{ssh_data}
+
+STRICT RULES:
+
+1. Use ONLY the supplied SSH log analysis evidence.
+2. Never invent IP reputation, malware activity, CVEs,
+   vulnerabilities, attacks, or threat intelligence.
+3. Multiple failed login attempts are suspicious activity,
+   but do NOT automatically confirm a successful compromise.
+4. Do not claim that an IP address is malicious unless
+   reputation intelligence is actually provided.
+5. Do not claim that an account was compromised unless
+   successful unauthorized access is directly supported
+   by the supplied evidence.
+6. Clearly distinguish OBSERVED FACTS from SECURITY INTERPRETATION.
+7. If the evidence is insufficient, explicitly say:
+   "Insufficient evidence to determine this."
+8. Treat repeated authentication failures from the same
+   source IP as suspicious authentication activity.
+9. Consider successful login events separately from failed
+   authentication events.
+10. Keep recommendations practical and defensive.
+11. This is an authorized security assessment.
+
+Produce exactly these sections:
+
+1. Risk Assessment
+
+Give:
+- Risk Level: Low / Medium / High / Inconclusive
+- Short rationale
+
+The risk level must be based ONLY on the supplied SSH evidence.
+
+
+2. Observed SSH Findings
+
+Include:
+- Total log lines
+- Failed authentication attempts
+- Successful logins
+- Failed attempts grouped by source IP
+- Failed attempts grouped by username
+- Suspicious source IPs identified by repeated failures
+
+
+3. Security Interpretation
+
+For important observations:
+
+- State the observed fact.
+- Explain its security significance.
+
+Pay particular attention to:
+- Repeated failed authentication attempts
+- Multiple usernames targeted from the same IP
+- Successful login events
+- Repeated activity from suspicious source IPs
+
+Do not overstate conclusions.
+
+
+4. Data Limitations
+
+Explain what cannot be determined from the supplied
+SSH log evidence alone.
+
+Mention limitations such as:
+- IP reputation
+- Whether the source IP is malicious
+- Whether an account was actually compromised
+- Password strength
+- MFA configuration
+- Firewall configuration
+- Full system activity
+- Malware presence
+- Post-authentication activity
+
+
+5. Recommended Next Steps
+
+Give practical defensive recommendations based ONLY
+on the supplied evidence.
+
+Examples:
+- Review repeated failed authentication attempts.
+- Verify whether successful logins were legitimate.
+- Review SSH authentication policies.
+- Consider rate limiting or account lockout controls.
+- Restrict SSH exposure where appropriate.
+- Review authentication logs for additional context.
+- Investigate suspicious source IPs using trusted
+  threat intelligence sources.
+"""
+
+    response = client.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt
+    )
+
+    return response.text

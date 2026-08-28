@@ -6,17 +6,30 @@ from app.agents.orchestrator import Orchestrator
 from app.database.connection import get_db
 from app.database.models import Conversation
 
+
 router = APIRouter(prefix="/api")
+
 
 class ChatRequest(BaseModel):
     message: str
+    log_data: str | None = None
+    code_data: str | None = None
+
 
 orchestrator = Orchestrator()
 
 
 @router.post("/chat")
-def chat(request: ChatRequest, db: Session = Depends(get_db)):
-    result = orchestrator.analyze(request.message)
+def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db)
+):
+
+    result = orchestrator.analyze(
+        message=request.message,
+        log_data=request.log_data,
+        code_data=request.code_data
+    )
 
     conversation = Conversation(
         user_message=request.message,
@@ -31,7 +44,10 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/conversations")
-def get_conversations(db: Session = Depends(get_db)):
+def get_conversations(
+    db: Session = Depends(get_db)
+):
+
     conversations = (
         db.query(Conversation)
         .order_by(Conversation.created_at.desc())
