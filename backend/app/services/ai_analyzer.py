@@ -1,8 +1,13 @@
 import os
+import time
 
 from dotenv import load_dotenv
 from google import genai
 
+
+# ==========================================
+# ENVIRONMENT SETUP
+# ==========================================
 
 load_dotenv()
 
@@ -14,8 +19,95 @@ if not API_KEY:
     )
 
 
-client = genai.Client(api_key=API_KEY)
+client = genai.Client(
+    api_key=API_KEY
+)
 
+
+GEMINI_MODEL = os.getenv(
+    "GEMINI_MODEL",
+    "gemini-3.6-flash"
+)
+
+print(f"[AI Analyzer] Using Gemini model: {GEMINI_MODEL}")
+
+
+# ==========================================
+# SAFE GEMINI RESPONSE HELPER
+# ==========================================
+
+def generate_ai_response(
+    prompt: str,
+    fallback_response: str,
+    retries: int = 3
+) -> str:
+
+    last_error = None
+
+    for attempt in range(retries):
+
+        try:
+
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt
+            )
+
+            response_text = getattr(
+                response,
+                "text",
+                None
+            )
+
+            if response_text:
+
+                cleaned_response = response_text.strip()
+
+                if cleaned_response:
+                    return cleaned_response
+
+            print(
+                "[AI Analyzer] Empty Gemini response received."
+            )
+
+        except Exception as error:
+
+            last_error = error
+
+            print(
+                f"[AI Analyzer] Gemini attempt "
+                f"{attempt + 1}/{retries} failed: {error}"
+            )
+
+            if attempt < retries - 1:
+
+                delay = 2 ** attempt
+
+                print(
+                    f"[AI Analyzer] Retrying in "
+                    f"{delay} seconds..."
+                )
+
+                time.sleep(delay)
+
+    print(
+        "[AI Analyzer] Gemini unavailable. "
+        "Using fallback analysis."
+    )
+
+    if last_error:
+
+        print(
+            f"[AI Analyzer] Final error: "
+            f"{last_error}"
+        )
+
+    return fallback_response
+
+
+# ==========================================
+# DOMAIN / WHOIS / DNS ANALYSIS
+# ==========================================
 
 def analyze_security_findings(
     domain: str,
@@ -26,33 +118,7 @@ def analyze_security_findings(
     prompt = f"""
 You are CyberSphere's AI Security Analyst.
 
-Analyze the REAL WHOIS and DNS evidence provided below.
-
-Your job is to interpret the evidence carefully and produce
-a professional cybersecurity assessment.
-
-STRICT RULES:
-
-1. Use ONLY the supplied WHOIS and DNS data.
-2. Never invent threat intelligence, malware history,
-   IP reputation, vulnerabilities, attacks, or security controls.
-3. Clearly separate OBSERVED FACTS from SECURITY INTERPRETATION.
-4. Do not claim that a security mechanism is enabled unless
-   the supplied evidence directly supports that conclusion.
-5. If the available evidence is insufficient, explicitly say:
-   "Insufficient evidence to determine this."
-6. Do not treat domain age alone as proof that a domain is safe.
-7. Do not treat Cloudflare usage alone as proof that a domain is safe.
-8. Do not claim that SPF controls incoming email.
-9. SPF describes which systems are authorized to send email
-   using a domain.
-10. If there are no MX records, state only that no mail exchanger
-    was observed in the supplied DNS data.
-11. Do not claim that an IP is malicious or safe unless
-    reputation data is actually provided.
-12. Do not claim that a vulnerability exists unless evidence
-    of that vulnerability is provided.
-13. Keep recommendations relevant to the available evidence.
+Analyze ONLY the evidence provided below.
 
 DOMAIN:
 {domain}
@@ -63,63 +129,146 @@ WHOIS DATA:
 DNS DATA:
 {dns_data}
 
+STRICT RULES:
 
-Produce the report using exactly these sections:
+1. Use ONLY the supplied evidence.
+2. Do not invent threat intelligence.
+3. Do not claim malicious activity without evidence.
+4. Do not claim a domain is safe without evidence.
+5. Clearly separate observed facts from interpretation.
+6. If evidence is insufficient, explicitly say:
+   "Insufficient evidence to determine this."
 
-1. Risk Assessment
+Produce exactly these sections:
 
-Give:
-- Risk Level: Low / Medium / High / Inconclusive
-- Short rationale
+### 1. Risk Assessment
 
-The risk level must be based ONLY on the supplied evidence.
+### 2. Observed Findings
 
+### 3. Security Interpretation
 
-2. Observed Findings
+### 4. Data Limitations
 
-List factual observations from:
-- WHOIS
-- DNS
-
-
-3. Security Interpretation
-
-For every important observation:
-- State the fact
-- Explain its security significance
-
-Do not overstate conclusions.
-
-
-4. Data Limitations
-
-Explain what cannot be determined because the current
-dataset does not contain:
-- IP reputation
-- Malware intelligence
-- HTTP/HTTPS behavior
-- SSL/TLS certificate information
-- Web application vulnerabilities
-- Network traffic
-
-
-5. Recommended Next Steps
-
-Give practical next steps that are appropriate
-for the available evidence.
+### 5. Recommended Next Steps
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt
+    fallback_response = f"""
+### 1. Risk Assessment
+
+- **Risk Level:** Inconclusive
+- **Rationale:** WHOIS and DNS information was collected, but Gemini AI analysis is temporarily unavailable. The available infrastructure information alone cannot confirm whether the domain is malicious or safe.
+
+### 2. Observed Findings
+
+**Domain Analyzed:**
+
+`{domain}`
+
+**WHOIS Data Collected:**
+
+{whois_data}
+
+**DNS Data Collected:**
+
+{dns_data}
+
+### 3. Security Interpretation
+
+The collected WHOIS and DNS information provides infrastructure and configuration context.
+
+However, WHOIS and DNS records alone cannot confirm:
+
+- Malware activity
+- Phishing activity
+- Malicious intent
+- Domain reputation
+- Website safety
+
+Insufficient evidence to determine this.
+
+### 4. Data Limitations
+
+The following information could not be determined:
+
+- IP reputation
+- Domain reputation
+- Malware intelligence
+- Website behavior
+- Web application vulnerabilities
+- SSL/TLS security
+- Network traffic
+- Phishing activity
+- Malicious intent
+
+### 5. Recommended Next Steps
+
+- Review WHOIS registration information.
+- Review DNS configuration.
+- Check trusted threat intelligence sources.
+- Analyze website behavior separately.
+- Retry AI analysis later.
+"""
+
+    return generate_ai_response(
+        prompt,
+        fallback_response
     )
 
-    return response.text
+
+# ==========================================
+# NETWORK / NMAP SECURITY ANALYSIS
+# ==========================================
 
 def analyze_network_findings(
     target: str,
     nmap_data: dict
 ) -> str:
+
+    # ------------------------------------------
+    # BUILD CLEAN SERVICE OUTPUT FOR FALLBACK
+    # ------------------------------------------
+
+    ports = nmap_data.get("ports", [])
+
+    if ports:
+
+        service_lines = []
+
+        for item in ports:
+
+            port = item.get("port", "Unknown")
+            protocol = item.get("protocol", "tcp")
+            state = item.get("state", "Unknown")
+            service = item.get("service", "Unknown")
+            version = item.get("version", "")
+
+            version_text = (
+                version
+                if version
+                else "Identification uncertain"
+            )
+
+            service_lines.append(
+                f"- **Port:** {port}/{protocol}\n"
+                f"  - **State:** {state}\n"
+                f"  - **Service:** {service}\n"
+                f"  - **Version:** {version_text}"
+            )
+
+        services_output = "\n\n".join(
+            service_lines
+        )
+
+    else:
+
+        services_output = (
+            "No open network services were identified "
+            "in the supplied scan results."
+        )
+
+    # ------------------------------------------
+    # AI PROMPT
+    # ------------------------------------------
 
     prompt = f"""
 You are CyberSphere's AI Network Security Analyst.
@@ -140,10 +289,10 @@ STRICT RULES:
 3. An open port does NOT automatically mean a vulnerability.
 4. Do not call a service vulnerable unless evidence
    of a vulnerability is actually provided.
-5. If Nmap's service detection contains '?' or has
-   an empty version, treat the identification as uncertain.
+5. If service identification is uncertain, clearly
+   state that uncertainty.
 6. Clearly distinguish observed facts from interpretation.
-7. If the evidence is insufficient, explicitly say:
+7. If evidence is insufficient, explicitly say:
    "Insufficient evidence to determine this."
 8. Explain why an exposed service may deserve review,
    but do not claim it is malicious.
@@ -152,15 +301,15 @@ STRICT RULES:
 
 Produce exactly these sections:
 
-1. Risk Assessment
+### 1. Risk Assessment
 
 Give:
 - Risk Level: Low / Medium / High / Inconclusive
 - Short rationale
 
-2. Observed Network Services
+### 2. Observed Network Services
 
-For each open port:
+For each open port include:
 - Port
 - Protocol
 - State
@@ -168,32 +317,275 @@ For each open port:
 - Version
 - Whether identification is confirmed or uncertain
 
-3. Security Interpretation
+### 3. Security Interpretation
 
 Explain the security significance of the observed
 services without overstating risk.
 
-4. Data Limitations
+### 4. Data Limitations
 
 Explain what cannot be determined from an Nmap
 service scan alone.
 
-5. Recommended Next Steps
+### 5. Recommended Next Steps
 
-Give practical defensive recommendations such as:
-- Verify whether the service is required.
-- Restrict unnecessary network exposure.
-- Review firewall rules.
-- Keep services patched.
-- Perform deeper authorized assessment when appropriate.
+Give practical defensive recommendations.
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt
+    # ------------------------------------------
+    # FALLBACK RESPONSE
+    # ------------------------------------------
+
+    fallback_response = f"""
+### 1. Risk Assessment
+
+- **Risk Level:** Inconclusive
+- **Rationale:** The Nmap scan completed successfully, but Gemini AI analysis is temporarily unavailable. Open ports and detected services alone do not prove that a vulnerability exists.
+
+### 2. Observed Network Services
+
+**Target:** `{target}`
+
+{services_output}
+
+### 3. Security Interpretation
+
+The scan identified network services that appear to be reachable on the target.
+
+However:
+
+- An open port does not automatically indicate a vulnerability.
+- A detected service does not automatically indicate compromise.
+- Service exposure should be reviewed based on operational or business requirements.
+- Version information alone cannot confirm whether a service is exploitable.
+- Services with uncertain identification require additional verification.
+
+Insufficient evidence to determine whether the observed services contain exploitable vulnerabilities.
+
+### 4. Data Limitations
+
+An Nmap service scan alone cannot determine:
+
+- Whether a service contains a vulnerability
+- Whether a CVE is exploitable
+- Whether the target is compromised
+- Whether malware is present
+- Whether credentials have been exposed
+- Whether web application vulnerabilities exist
+- Whether suspicious activity is occurring
+- Complete network architecture
+- Complete firewall configuration
+- Application-level security weaknesses
+
+### 5. Recommended Next Steps
+
+- Verify whether each exposed service is required.
+- Disable unnecessary services where appropriate.
+- Restrict unnecessary network exposure.
+- Review firewall and access-control rules.
+- Review exposed service configurations.
+- Keep exposed software and operating systems patched.
+- Verify service versions against supported vendor releases.
+- Perform deeper authorized security assessment where appropriate.
+"""
+
+    # ------------------------------------------
+    # GENERATE AI RESPONSE OR USE FALLBACK
+    # ------------------------------------------
+
+    return generate_ai_response(
+        prompt,
+        fallback_response
     )
 
-    return response.text
+# ==========================================
+# CODE SECURITY ANALYSIS
+# ==========================================
+
+def analyze_code_findings(
+    code: str,
+    language: str = "Unknown"
+) -> str:
+
+    prompt = f"""
+You are CyberSphere's AI Code Security Analyst.
+
+Analyze ONLY the supplied source code.
+
+LANGUAGE:
+{language}
+
+SOURCE CODE:
+{code}
+
+STRICT RULES:
+
+1. Use ONLY the supplied source code.
+2. Do not invent vulnerabilities.
+3. Do not claim a vulnerability unless evidence exists in the code.
+4. Clearly separate observed facts from interpretation.
+5. If information is missing, explicitly say:
+   "Insufficient evidence to determine this."
+6. Provide defensive remediation guidance.
+
+Produce exactly these sections:
+
+### 1. Risk Assessment
+
+### 2. Observed Code Findings
+
+### 3. Security Interpretation
+
+### 4. Data Limitations
+
+### 5. Recommended Remediation
+"""
+
+    fallback_response = f"""
+### 1. Risk Assessment
+
+- **Risk Level:** Inconclusive
+- **Rationale:** Source code was supplied for analysis, but Gemini AI analysis is temporarily unavailable.
+
+### 2. Observed Code Findings
+
+**Language:**
+
+`{language}`
+
+The source code was successfully received for security analysis.
+
+### 3. Security Interpretation
+
+A complete AI-based security interpretation could not be generated at this time.
+
+Manual security review is recommended.
+
+Insufficient evidence to determine specific vulnerabilities from the fallback analysis alone.
+
+### 4. Data Limitations
+
+The following cannot be determined from source code alone:
+
+- Runtime configuration
+- Deployment environment
+- Network configuration
+- Dependency vulnerabilities
+- Production secrets
+- Actual runtime behavior
+- External service configuration
+
+### 5. Recommended Remediation
+
+- Perform manual code review.
+- Validate user input.
+- Use parameterized database queries.
+- Avoid exposing secrets in source code.
+- Use secure authentication practices.
+- Keep dependencies updated.
+- Retry AI analysis later.
+"""
+
+    return generate_ai_response(
+        prompt,
+        fallback_response
+    )
+
+
+# ==========================================
+# SOC / SECURITY LOG ANALYSIS
+# ==========================================
+
+def analyze_soc_findings(
+    log_data: dict
+) -> str:
+
+    prompt = f"""
+You are CyberSphere's AI SOC Security Analyst.
+
+Analyze ONLY the supplied security log evidence.
+
+LOG DATA:
+{log_data}
+
+STRICT RULES:
+
+1. Use ONLY the supplied evidence.
+2. Do not invent attacker activity.
+3. Do not claim compromise without evidence.
+4. Clearly separate observations from interpretation.
+5. If evidence is insufficient, explicitly say:
+   "Insufficient evidence to determine this."
+
+Produce exactly these sections:
+
+### 1. Risk Assessment
+
+### 2. Observed Security Findings
+
+### 3. Security Interpretation
+
+### 4. Data Limitations
+
+### 5. Recommended Next Steps
+"""
+
+    fallback_response = f"""
+### 1. Risk Assessment
+
+- **Risk Level:** Inconclusive
+- **Rationale:** Security log data was collected, but Gemini AI analysis is temporarily unavailable.
+
+### 2. Observed Security Findings
+
+**Collected Log Data:**
+
+{log_data}
+
+### 3. Security Interpretation
+
+The supplied logs should be reviewed for:
+
+- Repeated authentication failures
+- Unusual login patterns
+- Unexpected successful access
+- Suspicious source activity
+
+However, logs alone may not confirm malicious activity or account compromise.
+
+Insufficient evidence to determine compromise status.
+
+### 4. Data Limitations
+
+The available logs may not determine:
+
+- IP reputation
+- User legitimacy
+- Account compromise
+- Post-authentication activity
+- Malware presence
+- Full network activity
+- Attacker identity
+
+### 5. Recommended Next Steps
+
+- Verify suspicious login activity.
+- Review surrounding authentication logs.
+- Investigate unusual authentication patterns.
+- Review account access controls.
+- Check relevant threat intelligence sources.
+- Retry AI analysis later.
+"""
+
+    return generate_ai_response(
+        prompt,
+        fallback_response
+    )
+
+
+# ==========================================
+# URL SECURITY ANALYSIS
+# ==========================================
 
 def analyze_url_findings(
     url: str,
@@ -203,8 +595,7 @@ def analyze_url_findings(
     prompt = f"""
 You are CyberSphere's AI URL Security Analyst.
 
-Analyze the REAL HTTP/HTTPS metadata collected for the
-provided URL.
+Analyze ONLY the supplied URL evidence.
 
 URL:
 {url}
@@ -214,207 +605,201 @@ URL ANALYSIS DATA:
 
 STRICT RULES:
 
-1. Use ONLY the supplied URL analysis evidence.
-2. Never invent malware, phishing history, reputation,
-   vulnerabilities, CVEs, attacks, or threat intelligence.
-3. An HTTP status code alone does NOT prove that a URL
-   is safe or malicious.
-4. The presence or absence of a security header alone
-   does NOT prove that a website is vulnerable.
-5. If a security header is missing, describe it as an
-   observation that may warrant review, not as a confirmed
-   vulnerability.
-6. If redirects are observed, describe the redirect behavior
-   without assuming malicious intent.
-7. Clearly distinguish OBSERVED FACTS from SECURITY INTERPRETATION.
-8. If the evidence is insufficient, explicitly say:
+1. Use ONLY supplied evidence.
+2. Do not claim phishing without evidence.
+3. Do not claim malware without evidence.
+4. Clearly separate observations from interpretation.
+5. If a website is unreachable, do not claim that missing
+   security headers are confirmed vulnerabilities.
+6. If evidence is insufficient, explicitly say:
    "Insufficient evidence to determine this."
-9. Do not claim that the domain or website is malicious
-   unless direct evidence is provided.
-10. Do not claim that HTTPS guarantees complete security.
-11. Keep recommendations practical and defensive.
-12. This is an authorized security assessment.
 
 Produce exactly these sections:
 
-1. Risk Assessment
+### 1. Risk Assessment
 
-Give:
-- Risk Level: Low / Medium / High / Inconclusive
-- Short rationale
+### 2. Observed URL Findings
 
-The risk level must be based ONLY on the supplied evidence.
+### 3. Security Interpretation
 
+### 4. Data Limitations
 
-2. Observed URL Findings
-
-Include:
-- Original URL
-- Final URL
-- Domain
-- HTTP status code
-- Protocol
-- Redirect count
-- Content type
-- Server
-- Security headers
-
-
-3. Security Interpretation
-
-Explain the security significance of the observed
-HTTP/HTTPS behavior and security headers.
-
-Clearly distinguish:
-- Fact
-- Interpretation
-
-Do not overstate conclusions.
-
-
-4. Data Limitations
-
-Explain what cannot be determined from this dataset.
-
-Mention limitations such as:
-- Domain/IP reputation
-- Malware intelligence
-- Website content analysis
-- Web application vulnerabilities
-- Authentication behavior
-- Backend infrastructure
-- Full SSL/TLS configuration
-- Network traffic
-
-
-5. Recommended Next Steps
-
-Give practical defensive recommendations based ONLY
-on the supplied evidence.
-
-Examples:
-- Review missing security headers.
-- Verify HTTPS configuration.
-- Investigate unexpected redirects.
-- Perform authorized web application testing when appropriate.
-- Check domain/IP reputation using trusted intelligence sources.
+### 5. Recommended Next Steps
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt
-    )
+    fallback_response = f"""
+### 1. Risk Assessment
 
-    return response.text
+- **Risk Level:** Inconclusive
+- **Rationale:** URL analysis data was collected, but Gemini AI analysis is temporarily unavailable.
+
+### 2. Observed URL Findings
+
+**URL:**
+
+`{url}`
+
+**Collected URL Analysis Data:**
+
+{url_data}
+
+### 3. Security Interpretation
+
+The collected URL structure and connection information may indicate areas requiring further investigation.
+
+However, URL structure alone cannot confirm:
+
+- Phishing
+- Malware
+- Malicious intent
+- Website compromise
+
+Insufficient evidence to determine this.
+
+### 4. Data Limitations
+
+The available data may not determine:
+
+- Domain reputation
+- IP reputation
+- Malware presence
+- Website content safety
+- Phishing activity
+- Web application vulnerabilities
+- Complete SSL/TLS configuration
+- Full website behavior
+
+### 5. Recommended Next Steps
+
+- Verify domain reputation.
+- Check trusted threat intelligence sources.
+- Review website behavior.
+- Verify HTTPS configuration.
+- Review certificate information.
+- Retry AI analysis later.
+"""
+
+    return generate_ai_response(
+        prompt,
+        fallback_response
+    )
+# ==========================================
+# SSH LOG SECURITY ANALYSIS
+# ==========================================
 
 def analyze_ssh_findings(
-    ssh_data: dict
+    log_data: dict
 ) -> str:
 
     prompt = f"""
 You are CyberSphere's AI SOC Security Analyst.
 
-Analyze the REAL SSH authentication evidence provided below.
+Analyze ONLY the supplied SSH authentication evidence.
 
-SSH LOG ANALYSIS DATA:
-{ssh_data}
+SSH LOG FINDINGS:
+
+{log_data}
 
 STRICT RULES:
 
-1. Use ONLY the supplied SSH log analysis evidence.
-2. Never invent IP reputation, malware activity, CVEs,
-   vulnerabilities, attacks, or threat intelligence.
-3. Multiple failed login attempts are suspicious activity,
-   but do NOT automatically confirm a successful compromise.
-4. Do not claim that an IP address is malicious unless
-   reputation intelligence is actually provided.
-5. Do not claim that an account was compromised unless
-   successful unauthorized access is directly supported
-   by the supplied evidence.
-6. Clearly distinguish OBSERVED FACTS from SECURITY INTERPRETATION.
-7. If the evidence is insufficient, explicitly say:
+1. Use only the supplied evidence.
+2. Do not invent attack activity, malware, compromise,
+   threat intelligence, or IP reputation.
+3. Clearly distinguish observed facts from interpretation.
+4. Repeated failed logins may indicate password guessing,
+   credential probing, or legitimate authentication mistakes.
+5. A successful login following failed attempts does not
+   automatically prove account compromise.
+6. If evidence is insufficient, explicitly state:
    "Insufficient evidence to determine this."
-8. Treat repeated authentication failures from the same
-   source IP as suspicious authentication activity.
-9. Consider successful login events separately from failed
-   authentication events.
-10. Keep recommendations practical and defensive.
-11. This is an authorized security assessment.
+7. Provide defensive recommendations only.
 
 Produce exactly these sections:
 
-1. Risk Assessment
+### 1. Risk Assessment
 
 Give:
 - Risk Level: Low / Medium / High / Inconclusive
 - Short rationale
 
-The risk level must be based ONLY on the supplied SSH evidence.
-
-
-2. Observed SSH Findings
+### 2. Observed SSH Findings
 
 Include:
-- Total log lines
+- Total log lines analyzed
 - Failed authentication attempts
 - Successful logins
-- Failed attempts grouped by source IP
-- Failed attempts grouped by username
-- Suspicious source IPs identified by repeated failures
+- Source IPs
+- Targeted usernames
 
+### 3. Security Interpretation
 
-3. Security Interpretation
+Explain the significance of the authentication pattern
+without claiming compromise unless directly supported
+by evidence.
 
-For important observations:
-
-- State the observed fact.
-- Explain its security significance.
-
-Pay particular attention to:
-- Repeated failed authentication attempts
-- Multiple usernames targeted from the same IP
-- Successful login events
-- Repeated activity from suspicious source IPs
-
-Do not overstate conclusions.
-
-
-4. Data Limitations
+### 4. Data Limitations
 
 Explain what cannot be determined from the supplied
-SSH log evidence alone.
+SSH authentication logs alone.
 
-Mention limitations such as:
+### 5. Recommended Next Steps
+
+Provide practical defensive recommendations.
+"""
+
+    failed_attempts = log_data.get(
+        "failed_attempts",
+        0
+    )
+
+    successful_logins = log_data.get(
+        "successful_logins",
+        0
+    )
+
+    fallback_response = f"""
+### 1. Risk Assessment
+
+- **Risk Level:** Inconclusive
+- **Rationale:** SSH authentication data was collected, but AI analysis is temporarily unavailable.
+
+### 2. Observed SSH Findings
+
+- **Failed Authentication Attempts:** {failed_attempts}
+- **Successful Logins:** {successful_logins}
+
+### 3. Security Interpretation
+
+The available SSH log data indicates authentication activity.
+
+Repeated failed authentication attempts may require investigation,
+but the supplied data alone cannot confirm whether an account
+was compromised.
+
+### 4. Data Limitations
+
+The supplied SSH logs alone cannot determine:
+
 - IP reputation
-- Whether the source IP is malicious
-- Whether an account was actually compromised
+- Malicious intent
+- Account compromise
+- Malware presence
+- Post-authentication activity
 - Password strength
 - MFA configuration
 - Firewall configuration
-- Full system activity
-- Malware presence
-- Post-authentication activity
 
+### 5. Recommended Next Steps
 
-5. Recommended Next Steps
-
-Give practical defensive recommendations based ONLY
-on the supplied evidence.
-
-Examples:
+- Verify whether successful logins were authorized.
 - Review repeated failed authentication attempts.
-- Verify whether successful logins were legitimate.
-- Review SSH authentication policies.
-- Consider rate limiting or account lockout controls.
-- Restrict SSH exposure where appropriate.
-- Review authentication logs for additional context.
-- Investigate suspicious source IPs using trusted
-  threat intelligence sources.
+- Inspect surrounding authentication logs.
+- Review SSH access controls.
+- Consider rate limiting and automated blocking for repeated failures.
+- Review whether privileged accounts require stronger authentication controls.
 """
 
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt
+    return generate_ai_response(
+        prompt,
+        fallback_response
     )
-
-    return response.text

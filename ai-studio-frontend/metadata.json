@@ -1,0 +1,7 @@
+{
+  "name": "CyberSphere AI",
+  "description": "An intelligent AI-powered cybersecurity command center and assistant for log analysis, code security review, threat intelligence, and vulnerability investigation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
